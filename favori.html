@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Favorilerim - SKIMS Tasarım İncelemesi</title>
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="Css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Favori sayfası 6 sütunlu kolaj (grid), kart ve standart kalp butonu stilleri tek dosya içinde toplandı -->
+    <style>
+        .favorites-main-wrapper {
+            flex-grow: 1;
+            width: 100%;
+            padding-bottom: 60px;
+        }
+
+        .favorites-page-title {
+            width: 90%;
+            max-width: 1400px;
+            margin: 50px auto 10px auto;
+            font-size: 26px;
+            font-weight: 700;
+            color: #111;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* 6 Sütunlu Otomatik Kolaj Izgarası */
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(6, minmax(0, 1fr));
+            gap: 15px;
+            width: 90%;
+            max-width: 1400px;
+            margin: 30px auto 40px auto;
+        }
+
+        .grid-container .card {
+            display: flex;
+            flex-direction: column;
+            background: transparent;
+            border-radius: 0;
+            aspect-ratio: auto;
+            min-width: 0;
+        }
+
+        .grid-container .image-box {
+            width: 100%;
+            aspect-ratio: 3 / 4;
+            overflow: hidden;
+            margin-bottom: 8px;
+            background-color: #f2f2f2;
+        }
+
+        .grid-container .image-box img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            transition: transform 0.3s ease;
+        }
+
+        .grid-container .card:hover .image-box img {
+            transform: scale(1.04);
+        }
+
+        .grid-container .text-box {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            min-width: 0;
+        }
+
+        .grid-container .brand-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            min-height: 28px;
+            gap: 6px;
+        }
+
+        .grid-container .brand-name {
+            font-weight: bold;
+            font-size: 13px;
+            color: #000;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .grid-container .product-title {
+            font-size: 12px;
+            color: #666;
+            line-height: 1.3;
+        }
+
+        .grid-container .price {
+            font-size: 13px;
+            color: #333;
+        }
+
+        .grid-container .discount {
+            color: #ff5e3a;
+            margin-right: 5px;
+            font-weight: bold;
+        }
+
+        /* Bölüm D ile birebir aynı, sabit boyutlu, animasyonsuz kalp butonu */
+        .grid-container .heart-btn {
+            background: none;
+            border: none;
+            font-family: 'Segoe UI Symbol', 'Apple Symbols', 'Helvetica Neue', Arial, sans-serif;
+            font-size: 24px;
+            width: 28px;
+            height: 28px;
+            line-height: 28px;
+            flex-shrink: 0;
+            color: #888888;
+            cursor: pointer;
+            padding: 0;
+            margin: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            transition: color 0.2s ease;
+        }
+
+        .grid-container .heart-btn.liked {
+            color: #ff3b30;
+        }
+
+        .empty-favorites-msg {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 70px 20px;
+            font-size: 15px;
+            color: #555;
+            border: 1px dashed #ddd;
+            background-color: #fff;
+        }
+
+        @media (max-width: 992px) {
+            .grid-container { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+        }
+        @media (max-width: 768px) {
+            .grid-container { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        }
+        @media (max-width: 480px) {
+            .grid-container { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- HEADER (LOGO VE MENÜ BÖLÜMÜ) -->
+    <header class="header-top" id="header-logo-container"></header>
+    <nav class="header-bottom" id="header-nav-container"></nav>
+
+    <!-- Favorilenen ürünlerin 6'lı kolajlar halinde dinamik yerleşeceği ana bölüm -->
+    <main class="favorites-main-wrapper">
+        <h1 class="favorites-page-title">FAVORİLERİM</h1>
+        <div class="grid-container" id="product-grid"></div>
+        <div id="extra-collages-container"></div>
+    </main>
+
+    <!-- FOOTER BÖLÜMÜ -->
+    <footer class="site-footer">
+        <div class="footer-container">
+            <div class="footer-left">
+                <div class="logo-container" id="footer-logo-container"></div>
+                <p class="footer-description" id="footer-text-container"></p>
+            </div>
+            <div class="footer-right">
+                <ul class="social-links" id="social-links-container"></ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; <span id="current-year"></span> Tüm Hakları Saklıdır.</p>
+        </div>
+    </footer>
+
+    <!-- .NET 10 Web API İstemcisi ve ortak header/JWT scripti -->
+    <script src="Js/api.js"></script>
+    <script src="Js/app.js"></script>
+
+    <!-- Favori sayfası JS mantığı (tek dosya içinde: GET /api/favorites, DELETE /api/favorites/{id} + localStorage + 6'lı kolaj) -->
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const firstGridContainer = document.getElementById("product-grid");
+            const extraCollagesContainer = document.getElementById("extra-collages-container");
+            const KOLAJ_KAPASITESI = 6;
+
+            if (!firstGridContainer) return;
+
+            function cozumleDosyaYolu(yol) {
+                if (window.SkimsApi && typeof SkimsApi.resolveMediaUrl === "function") {
+                    return SkimsApi.resolveMediaUrl(yol);
+                }
+                if (!yol || yol === "#") return "#";
+                return yol.startsWith("../") ? yol.replace(/^\.\.\//, "") : yol;
+            }
+
+            function formatFiyat(fiyat) {
+                if (window.SkimsApi && typeof SkimsApi.formatPrice === "function") {
+                    return SkimsApi.formatPrice(fiyat);
+                }
+                return String(fiyat ?? "");
+            }
+
+            function escapeHtml(val) {
+                return String(val ?? "")
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;");
+            }
+
+            function urunKartiHTMLOlustur(urun) {
+                const productId = String(urun.productId ?? urun.id ?? "");
+                const marka = urun.brand ?? urun.marka ?? "";
+                const baslik = urun.title ?? urun.baslik ?? "";
+                const fiyat = formatFiyat(urun.price ?? urun.fiyat ?? "");
+                const indirim = urun.discountLabel ?? urun.indirim ?? "%0";
+                const resimYolu = cozumleDosyaYolu(urun.imageUrl ?? urun.resim ?? "");
+                const rawLink = String(urun.productLink ?? urun.link ?? "").trim();
+                const urunLink = (rawLink && rawLink !== "#") ? cozumleDosyaYolu(rawLink) : "";
+                const indirimHTML = (indirim && indirim !== "%0") ? `<span class="discount">${escapeHtml(indirim)}</span>` : "";
+                const mtAttr = (window.SkimsMediaTransform && urun.mediaTransform)
+                    ? SkimsMediaTransform.buildAttr(urun.mediaTransform)
+                    : "";
+                const imgTag = `<img src="${escapeHtml(resimYolu)}" alt="${escapeHtml(marka || 'Ürün')}"${mtAttr}>`;
+                const mediaInner = urunLink
+                    ? `<a href="${escapeHtml(urunLink)}" target="_blank" rel="noopener noreferrer" class="media-transform-frame">${imgTag}</a>`
+                    : `<div class="media-transform-frame">${imgTag}</div>`;
+
+                return `
+                    <div class="card" data-product-id="${escapeHtml(productId)}">
+                        <div class="image-box">${mediaInner}</div>
+                        <div class="text-box">
+                            <div class="brand-row">
+                                <span class="brand-name">${escapeHtml(marka)}</span>
+                                <button type="button" class="heart-btn liked" data-product-id="${escapeHtml(productId)}" aria-label="Favorilerden Çıkar" title="Favorilerden Çıkar">&#9829;</button>
+                            </div>
+                            ${baslik ? `<p class="product-title">${escapeHtml(baslik)}</p>` : ""}
+                            ${(fiyat || indirimHTML) ? `<p class="price">${indirimHTML}<strong>${escapeHtml(fiyat)}</strong></p>` : ""}
+                        </div>
+                    </div>
+                `;
+            }
+
+            function kolajlariCiz(favoriUrunler) {
+                firstGridContainer.innerHTML = "";
+                if (extraCollagesContainer) extraCollagesContainer.innerHTML = "";
+
+                if (!favoriUrunler || favoriUrunler.length === 0) {
+                    firstGridContainer.innerHTML = `<div class="empty-favorites-msg">Henüz favorilerinize eklediğiniz aktif bir ürün bulunmuyor. Ürünlerin yanındaki kalp ikonuna tıklayarak favorilerinize ekleyebilirsiniz.</div>`;
+                    return;
+                }
+
+                // İlk 6 ürünü ana kolaja yerleştir
+                firstGridContainer.innerHTML = favoriUrunler.slice(0, KOLAJ_KAPASITESI).map(urunKartiHTMLOlustur).join("");
+
+                // 6 üründen fazlası varsa alt satıra yeni .grid-container kolajları oluştur
+                if (favoriUrunler.length > KOLAJ_KAPASITESI && extraCollagesContainer) {
+                    for (let i = KOLAJ_KAPASITESI; i < favoriUrunler.length; i += KOLAJ_KAPASITESI) {
+                        const yeniKolajDiv = document.createElement("div");
+                        yeniKolajDiv.className = "grid-container";
+                        yeniKolajDiv.innerHTML = favoriUrunler.slice(i, i + KOLAJ_KAPASITESI).map(urunKartiHTMLOlustur).join("");
+                        extraCollagesContainer.appendChild(yeniKolajDiv);
+                    }
+                }
+
+                if (window.SkimsMediaTransform) {
+                    SkimsMediaTransform.hydrateContainer(firstGridContainer);
+                    if (extraCollagesContainer) SkimsMediaTransform.hydrateContainer(extraCollagesContainer);
+                }
+
+                document.querySelectorAll(".grid-container .heart-btn[data-product-id]").forEach(btn => {
+                    btn.addEventListener("click", async function (e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const pid = btn.getAttribute("data-product-id");
+                        if (!pid) return;
+
+                        if (window.SkimsApi && SkimsApi.isAuthenticated() && /^\d+$/.test(pid)) {
+                            try {
+                                await SkimsApi.removeFavorite(Number(pid));
+                            } catch (err) {
+                                console.warn("Favoriden çıkarma API hatası:", err);
+                            }
+                        }
+
+                        // Yerel önbellekten (hem kullanıcı hem genel anahtardan) temizle
+                        try {
+                            const user = window.SkimsApi ? SkimsApi.getUser() : null;
+                            const uid = (user && user.uid) ? user.uid : "default_user";
+                            const userMap = JSON.parse(localStorage.getItem(`skims_favorites_${uid}`) || "{}");
+                            const genelMap = JSON.parse(localStorage.getItem("skims_favorites_data") || "{}");
+                            delete userMap[pid];
+                            delete genelMap[pid];
+                            localStorage.setItem(`skims_favorites_${uid}`, JSON.stringify(userMap));
+                            localStorage.setItem("skims_favorites_data", JSON.stringify(genelMap));
+                            if (typeof userFavoritesMap !== "undefined") {
+                                delete userFavoritesMap[pid];
+                            }
+                        } catch (_) {}
+
+                        favoriKolajlariniYukle();
+                    });
+                });
+            }
+
+            async function favoriKolajlariniYukle() {
+                if (!window.SkimsApi || !SkimsApi.isAuthenticated()) {
+                    firstGridContainer.innerHTML = `
+                        <div class="empty-favorites-msg">
+                            Favorilerinizi görüntülemek için lütfen <a href="giris_yap.html" style="color:#111; font-weight:700; text-decoration:underline;">giriş yapın</a>.
+                        </div>`;
+                    if (extraCollagesContainer) extraCollagesContainer.innerHTML = "";
+                    return;
+                }
+
+                const user = SkimsApi.getUser();
+                const uid = (user && user.uid) ? user.uid : "default_user";
+
+                // Yerelde tutulan kolaj slot anahtarlarını topla (eski/statik/silinmiş tüm kayıtlar aşağıda MySQL ile elenir)
+                const adaySlotAnahtarlari = [];
+                try {
+                    const genelVeri = JSON.parse(localStorage.getItem("skims_favorites_data") || "{}");
+                    const yerelVeri = JSON.parse(localStorage.getItem(`skims_favorites_${uid}`) || "{}");
+                    const tumAnahtarlar = new Set([...Object.keys(genelVeri || {}), ...Object.keys(yerelVeri || {})]);
+                    tumAnahtarlar.forEach(k => {
+                        if (!/^\d+$/.test(String(k))) {
+                            adaySlotAnahtarlari.push(String(k));
+                        }
+                    });
+                } catch (_) {}
+
+                try {
+                    // Hem veritabanı ürün favorilerini hem de kolaj slot favorilerini CANLI MySQL durumuyla çapraz doğrula
+                    const [apiFavorites, validatedSlots] = await Promise.all([
+                        SkimsApi.getFavorites(),
+                        adaySlotAnahtarlari.length > 0
+                            ? SkimsApi.validateFavoriteSlots(adaySlotAnahtarlari)
+                            : Promise.resolve([])
+                    ]);
+
+                    const dogrulanmisHarita = {};
+
+                    (Array.isArray(apiFavorites) ? apiFavorites : []).forEach(item => {
+                        dogrulanmisHarita[String(item.productId)] = {
+                            productId: String(item.productId),
+                            marka: item.brand,
+                            baslik: item.title,
+                            fiyat: SkimsApi.formatPrice(item.price),
+                            indirim: item.discountLabel || "%0",
+                            resim: item.imageUrl,
+                            link: item.productLink || "#",
+                            mediaTransform: null,
+                            addedAt: item.addedAt || new Date().toISOString()
+                        };
+                    });
+
+                    (Array.isArray(validatedSlots) ? validatedSlots : []).forEach(item => {
+                        dogrulanmisHarita[String(item.productId)] = {
+                            productId: String(item.productId),
+                            marka: item.brand || "",
+                            baslik: item.title || "",
+                            fiyat: item.price || "",
+                            indirim: item.discountLabel || "%0",
+                            resim: item.imageUrl,
+                            link: item.productLink || "#",
+                            mediaTransform: item.mediaTransform || null
+                        };
+                    });
+
+                    // Yayından kalkmış, silinmiş veya eski demo/hayalet kayıtları localStorage'dan da kalıcı olarak temizle
+                    localStorage.setItem("skims_favorites_data", JSON.stringify(dogrulanmisHarita));
+                    localStorage.setItem(`skims_favorites_${uid}`, JSON.stringify(dogrulanmisHarita));
+                    if (typeof userFavoritesMap !== "undefined") {
+                        Object.keys(userFavoritesMap).forEach(k => { if (!dogrulanmisHarita[k]) delete userFavoritesMap[k]; });
+                        Object.assign(userFavoritesMap, dogrulanmisHarita);
+                    }
+
+                    kolajlariCiz(Object.values(dogrulanmisHarita));
+                } catch (err) {
+                    console.error("Favoriler veritabanından doğrulanamadı:", err);
+                    firstGridContainer.innerHTML = `<div class="empty-favorites-msg">Favorileriniz sunucudan doğrulanamadı (${escapeHtml(err.message || "Bağlantı hatası")}). Lütfen daha sonra tekrar deneyin.</div>`;
+                    if (extraCollagesContainer) extraCollagesContainer.innerHTML = "";
+                }
+            }
+
+            window.renderFavoriSayfasiKolajlari = favoriKolajlariniYukle;
+            favoriKolajlariniYukle();
+        });
+    </script>
+</body>
+</html>

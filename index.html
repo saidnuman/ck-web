@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@700&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SKIMS</title>
+<link rel="stylesheet" href="Css/style.css">
+<!-- VİDEO BÖLÜMÜ İÇİN EKLENEN FONT AWESOME -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+<!-- ==================================================================
+        BÖLÜM 0 & 1: LOGO VE MENÜ BÖLÜMÜ (Dinamik olarak MySQL'den dolar)
+       ================================================================== -->
+<header class="header-top" id="header-logo-container"></header>
+<nav class="header-bottom" id="header-nav-container"></nav>
+
+<!-- ==================================================================
+        DİNAMİK İÇERİK ALANI (Ana Sayfa & Tüm ?kategori=<slug> Sayfaları)
+       ================================================================== -->
+<div id="dynamic-page-root">
+    <div id="dynamic-page-sections-host"></div>
+</div>
+
+<!-- ==================================================================
+        BÖLÜM ALT: FOOTER
+       ================================================================== -->
+<footer class="site-footer">
+    <div class="footer-container">
+        <!-- Sol Kısım -->
+        <div class="footer-left">
+            <div class="logo-container" id="footer-logo-container">
+                <!-- Logo JS'den gelecek -->
+            </div>
+            <!-- ID eklendi, içi boşaltıldı -->
+            <p class="footer-description" id="footer-text-container"></p>
+        </div>
+
+        <!-- Sağ Kısım -->
+        <div class="footer-right">
+            <!-- ID eklendi, içi boşaltıldı -->
+            <ul class="social-links" id="social-links-container">
+            </ul>
+        </div>
+    </div>
+
+    <div class="footer-bottom">
+        <p>&copy; <span id="current-year"></span> Tüm Hakları Saklıdır.</p>
+    </div>
+</footer>
+
+<!-- SCRIPTLER -->
+<script src="Js/api.js"></script>
+<script src="Js/app.js"></script>
+</body>
+</html>

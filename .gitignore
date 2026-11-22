@@ -1,0 +1,30 @@
+# .NET / Visual Studio derleme çıktıları ve kullanıcı dosyaları
+Backend/ProductShowcase.Api/bin/
+Backend/ProductShowcase.Api/obj/
+**/bin/
+**/obj/
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.cache
+
+# Gizli yerel yapılandırma ve ortam değişkeni dosyaları (GitHub'a ASLA gitmez)
+Backend/ProductShowcase.Api/appsettings.Local.json
+**/appsettings.Local.json
+**/appsettings.Development.json
+.env
+.env.*
+!.env.example
+
+# Log dosyaları ve kişisel yerel notlar (GitHub'a ASLA gitmez)
+*.log
+logs/
+admın notları/
+
+# İşletim sistemi geçici dosyaları
+.DS_Store
+Thumbs.db
+desktop.ini
