@@ -1,3 +1,5 @@
+using ProductShowcase.Api.DTOs;
+
 namespace ProductShowcase.Api.Services;
 
 public class LocalFileStorageService(IWebHostEnvironment environment, ILogger<LocalFileStorageService> logger)
@@ -87,5 +89,31 @@ public class LocalFileStorageService(IWebHostEnvironment environment, ILogger<Lo
             File.Delete(fullPath);
             logger.LogInformation("Yüklenen medya silindi: {FilePath}", fullPath);
         }
+    }
+
+    public Task<IReadOnlyList<MediaLibraryItemDto>> ListMediaLibraryAsync(CancellationToken cancellationToken = default)
+    {
+        var webRoot = string.IsNullOrWhiteSpace(environment.WebRootPath)
+            ? Path.Combine(environment.ContentRootPath, "wwwroot")
+            : environment.WebRootPath;
+        var uploadsFolder = Path.Combine(webRoot, "uploads");
+        if (!Directory.Exists(uploadsFolder))
+        {
+            return Task.FromResult<IReadOnlyList<MediaLibraryItemDto>>(Array.Empty<MediaLibraryItemDto>());
+        }
+
+        var items = new DirectoryInfo(uploadsFolder)
+            .GetFiles()
+            .Where(f => AllowedImageExtensions.Contains(f.Extension) || AllowedVideoExtensions.Contains(f.Extension))
+            .OrderByDescending(f => f.LastWriteTimeUtc)
+            .Select(f => new MediaLibraryItemDto(
+                Url: $"/uploads/{f.Name}",
+                FileName: f.Name,
+                MediaType: AllowedVideoExtensions.Contains(f.Extension) ? "video" : "image",
+                SizeBytes: f.Length,
+                UploadedAt: f.LastWriteTimeUtc))
+            .ToList();
+
+        return Task.FromResult<IReadOnlyList<MediaLibraryItemDto>>(items);
     }
 }

@@ -63,7 +63,9 @@ public class SiteSettingsController(
         if (request.LogoFile is not null && request.LogoFile.Length > 0)
         {
             var (newLogoUrl, _) = await fileStorageService.SaveMediaFileAsync(request.LogoFile, cancellationToken);
-            if (!string.IsNullOrWhiteSpace(setting.LogoUrl) && setting.LogoUrl.StartsWith("/uploads/", StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrWhiteSpace(setting.LogoUrl) &&
+                (setting.LogoUrl.StartsWith("/uploads/", StringComparison.OrdinalIgnoreCase) ||
+                 setting.LogoUrl.Contains("res.cloudinary.com/", StringComparison.OrdinalIgnoreCase)))
             {
                 oldUploadedLogo = setting.LogoUrl;
             }

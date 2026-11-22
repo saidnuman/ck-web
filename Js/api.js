@@ -1,11 +1,23 @@
 if (window.location.hostname === '127.0.0.1') {
     window.location.hostname = 'localhost';
 }
+
+// Canlı (Render) API adresi — Render servisini oluşturduktan sonra yalnızca bu satırı güncelleyin
+const PROD_API_BASE_URL = "https://RENDER_ADRESIN_BURAYA_GELECEK.onrender.com";
+const LOCAL_API_BASE_URL = "http://localhost:5000";
+
 // ============================================================================
 // SKIMS .NET 10 Web API İstemcisi (Fetch API + JWT Oturum & Favori Yönetimi)
 // ============================================================================
 (function (global) {
-    const API_BASE_URL = (global.SKIMS_API_BASE_URL || "http://localhost:5000").replace(/\/+$/, "");
+    const isLocalHost =
+        window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1" ||
+        window.location.protocol === "file:";
+    const API_BASE_URL = (
+        global.SKIMS_API_BASE_URL ||
+        (isLocalHost ? LOCAL_API_BASE_URL : PROD_API_BASE_URL)
+    ).replace(/\/+$/, "");
     const TOKEN_KEY = "skims_jwt_token";
     const USER_KEY = "skims_auth_user";
 

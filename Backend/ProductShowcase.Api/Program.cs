@@ -37,7 +37,24 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
            .ReplaceService<IHistoryRepository, MariaDbCompatibleHistoryRepository>());
 
 // 3. Uygulama servisleri (Fotoğraf/Video yükleme, Kategori Şablon Klonlama, JWT üretimi, Şifre hashleme, E-posta MX & SMTP)
-builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
+static bool IsConfiguredValue(string? val) =>
+    !string.IsNullOrWhiteSpace(val) &&
+    !val.StartsWith("REPLACE_WITH_", StringComparison.OrdinalIgnoreCase) &&
+    !val.StartsWith("CHANGE_ME", StringComparison.OrdinalIgnoreCase);
+
+var useCloudinaryStorage =
+    IsConfiguredValue(builder.Configuration["Cloudinary:CloudName"]) &&
+    IsConfiguredValue(builder.Configuration["Cloudinary:ApiKey"]) &&
+    IsConfiguredValue(builder.Configuration["Cloudinary:ApiSecret"]);
+
+if (useCloudinaryStorage)
+{
+    builder.Services.AddScoped<IFileStorageService, CloudinaryFileStorageService>();
+}
+else
+{
+    builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
+}
 builder.Services.AddScoped<ICategoryTemplateService, CategoryTemplateService>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<PasswordHasher<User>>();
@@ -112,8 +129,26 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization();
 
-// 5. CORS politikası (Statik HTML/JS frontend'in API'ye sorunsuz erişebilmesi için)
-var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+// 5. CORS politikası (Statik HTML/JS frontend + GitHub Pages canlı erişimi için)
+var configuredOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+var rawOriginsString = builder.Configuration["Cors:AllowedOrigins"];
+var allowedSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+{
+    "https://saidnuman.github.io"
+};
+foreach (var originItem in configuredOrigins)
+{
+    var trimmed = originItem?.Trim().TrimEnd('/');
+    if (!string.IsNullOrWhiteSpace(trimmed)) allowedSet.Add(trimmed);
+}
+if (!string.IsNullOrWhiteSpace(rawOriginsString))
+{
+    foreach (var originItem in rawOriginsString.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+    {
+        var trimmed = originItem.TrimEnd('/');
+        if (!string.IsNullOrWhiteSpace(trimmed)) allowedSet.Add(trimmed);
+    }
+}
 
 builder.Services.AddCors(options =>
 {
@@ -127,23 +162,16 @@ builder.Services.AddCors(options =>
                   .AllowAnyMethod()
                   .AllowCredentials();
         }
-        else if (allowedOrigins.Length > 0)
+        else
         {
-            var allowedSet = new HashSet<string>(allowedOrigins, StringComparer.OrdinalIgnoreCase);
             policy.SetIsOriginAllowed(origin =>
                     string.Equals(origin, "null", StringComparison.OrdinalIgnoreCase) ||
-                    allowedSet.Contains(origin) ||
+                    allowedSet.Contains(origin.TrimEnd('/')) ||
                     (Uri.TryCreate(origin, UriKind.Absolute, out var uri) &&
                      (uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) || uri.Host == "127.0.0.1")))
                   .AllowAnyHeader()
                   .AllowAnyMethod()
                   .AllowCredentials();
-        }
-        else
-        {
-            policy.AllowAnyOrigin()
-                  .AllowAnyHeader()
-                  .AllowAnyMethod();
         }
     });
 });
@@ -175,20 +203,30 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-// 9. Sağlık kontrolü endpoint'i
+// 9. Sağlık kontrolü endpoint'leri (Render Health Check için /health + /api/health)
+app.MapGet("/health", () => Results.Ok(new
+{
+    status = "ok",
+    timestamp = DateTime.UtcNow
+}));
+
 app.MapGet("/api/health", () => Results.Ok(new
 {
     status = "healthy",
     framework = ".NET 10",
+    storage = useCloudinaryStorage ? "cloudinary" : "local",
     timestamp = DateTime.UtcNow
 }));
 
-// 10. İsteğe bağlı otomatik Migration ve varsayılan veri (Seed) yükleme
-if (builder.Configuration.GetValue<bool>("Database:AutoMigrateAndSeed"))
+// 10. Otomatik Migration ve varsayılan veri (Seed) yükleme (Yerel & Aiven MySQL)
+if (builder.Configuration.GetValue<bool?>("Database:AutoMigrateAndSeed") ?? true)
 {
     using var scope = app.Services.CreateScope();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+    logger.LogInformation("Aktif medya depolama sağlayıcısı: {StorageProvider}",
+        useCloudinaryStorage ? "Cloudinary (Kalıcı Bulut Depolama)" : "LocalFileStorage (wwwroot/uploads)");
 
     try
     {

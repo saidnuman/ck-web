@@ -15,7 +15,6 @@ public partial class PageSectionsController(
     ApplicationDbContext dbContext,
     IFileStorageService fileStorageService,
     ICategoryTemplateService categoryTemplateService,
-    IWebHostEnvironment environment,
     ILogger<PageSectionsController> logger) : ControllerBase
 {
     private static string? NullIfEmpty(string? value)
@@ -150,40 +149,118 @@ public partial class PageSectionsController(
     }
 
     /// <summary>
-    /// wwwroot/uploads/ klasöründe daha önce yüklenmiş tüm fotoğraf ve video dosyalarını en yeniden eskiye listeler.
+    /// Aktif medya deposundaki (Cloudinary veya yerel wwwroot/uploads/) ve veritabanında kayıtlı
+    /// harici (https://) fotoğraf/video dosyalarını en yeniden eskiye listeler.
     /// Admin Paneli Medya Kütüphanesi modalı tarafından kullanılır.
     /// </summary>
     [HttpGet("media-library")]
     [Authorize(Roles = "Admin")]
-    public ActionResult<IEnumerable<MediaLibraryItemDto>> GetMediaLibrary()
+    public async Task<ActionResult<IEnumerable<MediaLibraryItemDto>>> GetMediaLibrary(CancellationToken cancellationToken)
     {
-        var webRoot = string.IsNullOrWhiteSpace(environment.WebRootPath)
-            ? Path.Combine(environment.ContentRootPath, "wwwroot")
-            : environment.WebRootPath;
-        var uploadsFolder = Path.Combine(webRoot, "uploads");
-        if (!Directory.Exists(uploadsFolder))
+        var storageItems = await fileStorageService.ListMediaLibraryAsync(cancellationToken);
+        var items = new List<MediaLibraryItemDto>(storageItems);
+        var seenUrls = new HashSet<string>(
+            items.Select(i => i.Url),
+            StringComparer.OrdinalIgnoreCase);
+
+        void TryAddExternalDbUrl(string? rawUrl, DateTime createdAt)
         {
-            return Ok(Array.Empty<MediaLibraryItemDto>());
+            if (string.IsNullOrWhiteSpace(rawUrl)) return;
+            var trimmed = rawUrl.Trim();
+            if (!trimmed.StartsWith("https://", StringComparison.OrdinalIgnoreCase) &&
+                !trimmed.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+            if (!seenUrls.Add(trimmed)) return;
+
+            var cleanNoQuery = trimmed.Split('?', '#')[0];
+            var ext = Path.GetExtension(cleanNoQuery);
+            var isVideo = cleanNoQuery.Contains("/video/upload/", StringComparison.OrdinalIgnoreCase) ||
+                          ext.Equals(".mp4", StringComparison.OrdinalIgnoreCase) ||
+                          ext.Equals(".webm", StringComparison.OrdinalIgnoreCase) ||
+                          ext.Equals(".mov", StringComparison.OrdinalIgnoreCase);
+            var fileName = Path.GetFileName(cleanNoQuery);
+            if (string.IsNullOrWhiteSpace(fileName)) fileName = isVideo ? "video.mp4" : "image.jpg";
+
+            items.Add(new MediaLibraryItemDto(
+                Url: trimmed,
+                FileName: Uri.UnescapeDataString(fileName),
+                MediaType: isVideo ? "video" : "image",
+                SizeBytes: 0,
+                UploadedAt: createdAt));
         }
 
-        var imageExts = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-            { ".jpg", ".jpeg", ".png", ".webp", ".gif", ".jfif", ".avif", ".bmp" };
-        var videoExts = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-            { ".mp4", ".webm", ".mov" };
+        void CollectUrlsFromJson(System.Text.Json.JsonElement element, DateTime createdAt)
+        {
+            if (element.ValueKind == System.Text.Json.JsonValueKind.Object)
+            {
+                foreach (var prop in element.EnumerateObject())
+                {
+                    if (prop.Value.ValueKind == System.Text.Json.JsonValueKind.String &&
+                        (prop.Name.Equals("imageUrl", StringComparison.OrdinalIgnoreCase) ||
+                         prop.Name.Equals("videoUrl", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        TryAddExternalDbUrl(prop.Value.GetString(), createdAt);
+                    }
+                    else if (prop.Value.ValueKind is System.Text.Json.JsonValueKind.Array or System.Text.Json.JsonValueKind.Object)
+                    {
+                        CollectUrlsFromJson(prop.Value, createdAt);
+                    }
+                }
+            }
+            else if (element.ValueKind == System.Text.Json.JsonValueKind.Array)
+            {
+                foreach (var child in element.EnumerateArray())
+                {
+                    CollectUrlsFromJson(child, createdAt);
+                }
+            }
+        }
 
-        var items = new DirectoryInfo(uploadsFolder)
-            .GetFiles()
-            .Where(f => imageExts.Contains(f.Extension) || videoExts.Contains(f.Extension))
-            .OrderByDescending(f => f.LastWriteTimeUtc)
-            .Select(f => new MediaLibraryItemDto(
-                Url: $"/uploads/{f.Name}",
-                FileName: f.Name,
-                MediaType: videoExts.Contains(f.Extension) ? "video" : "image",
-                SizeBytes: f.Length,
-                UploadedAt: f.LastWriteTimeUtc))
-            .ToList();
+        // Veritabanında kayıtlı harici (Cloudinary/HTTPS) medya URL'lerini de kütüphaneye tamamlayıcı olarak ekle
+        var sectionMedia = await dbContext.PageSections
+            .AsNoTracking()
+            .Select(s => new { s.ImageUrl, s.SlotsJson, s.CreatedAt })
+            .ToListAsync(cancellationToken);
 
-        return Ok(items);
+        foreach (var sec in sectionMedia)
+        {
+            TryAddExternalDbUrl(sec.ImageUrl, sec.CreatedAt);
+            if (!string.IsNullOrWhiteSpace(sec.SlotsJson))
+            {
+                try
+                {
+                    using var doc = System.Text.Json.JsonDocument.Parse(sec.SlotsJson);
+                    CollectUrlsFromJson(doc.RootElement, sec.CreatedAt);
+                }
+                catch { /* geçersiz JSON yoksay */ }
+            }
+        }
+
+        var productMedia = await dbContext.Products
+            .AsNoTracking()
+            .Where(p => !string.IsNullOrEmpty(p.ImageUrl))
+            .Select(p => new { p.ImageUrl, p.CreatedAt })
+            .ToListAsync(cancellationToken);
+
+        foreach (var prod in productMedia)
+        {
+            TryAddExternalDbUrl(prod.ImageUrl, prod.CreatedAt);
+        }
+
+        var siteLogos = await dbContext.SiteSettings
+            .AsNoTracking()
+            .Where(s => !string.IsNullOrEmpty(s.LogoUrl))
+            .Select(s => new { s.LogoUrl, s.UpdatedAt })
+            .ToListAsync(cancellationToken);
+
+        foreach (var logo in siteLogos)
+        {
+            TryAddExternalDbUrl(logo.LogoUrl, logo.UpdatedAt);
+        }
+
+        return Ok(items.OrderByDescending(i => i.UploadedAt).ToList());
     }
 
     [HttpPost]
