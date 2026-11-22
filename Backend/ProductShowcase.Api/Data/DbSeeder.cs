@@ -75,15 +75,27 @@ public static class DbSeeder
         // 1) İlk kurulumda başlangıç Admin (ve isteğe bağlı Demo) kullanıcılarını yapılandırmadan (appsettings.Local.json / ENV) oluştur
         if (!await db.Users.AnyAsync())
         {
-            var adminEmail = configuration["Seed:AdminEmail"]?.Trim().ToLowerInvariant();
-            var adminPassword = configuration["Seed:AdminPassword"];
-            var adminFullName = configuration["Seed:AdminFullName"]?.Trim();
-            if (string.IsNullOrWhiteSpace(adminFullName)) adminFullName = "Site Yöneticisi";
-
             static bool IsPlaceholder(string? val) =>
                 string.IsNullOrWhiteSpace(val) ||
                 val.StartsWith("REPLACE_WITH_", StringComparison.OrdinalIgnoreCase) ||
                 val.StartsWith("CHANGE_ME", StringComparison.OrdinalIgnoreCase);
+
+            static string? PickConfigured(params string?[] candidates) =>
+                candidates.FirstOrDefault(v => !IsPlaceholder(v));
+
+            var adminEmail = PickConfigured(
+                configuration["Seed:AdminEmail"],
+                configuration["SeedAdmin:Email"],
+                configuration["SeedAdmin:AdminEmail"])?.Trim().ToLowerInvariant();
+            var adminPassword = PickConfigured(
+                configuration["Seed:AdminPassword"],
+                configuration["SeedAdmin:Password"],
+                configuration["SeedAdmin:AdminPassword"]);
+            var adminFullName = PickConfigured(
+                configuration["Seed:AdminFullName"],
+                configuration["SeedAdmin:FullName"],
+                configuration["SeedAdmin:AdminFullName"])?.Trim();
+            if (string.IsNullOrWhiteSpace(adminFullName)) adminFullName = "Site Yöneticisi";
 
             if (IsPlaceholder(adminEmail) || IsPlaceholder(adminPassword))
             {

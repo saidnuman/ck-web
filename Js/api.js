@@ -3,7 +3,7 @@ if (window.location.hostname === '127.0.0.1') {
 }
 
 // Canlı (Render) API adresi — Render servisini oluşturduktan sonra yalnızca bu satırı güncelleyin
-const PROD_API_BASE_URL = "https://RENDER_ADRESIN_BURAYA_GELECEK.onrender.com";
+const PROD_API_BASE_URL = "https://ck-web-api.onrender.com";
 const LOCAL_API_BASE_URL = "http://localhost:5000";
 
 // ============================================================================
