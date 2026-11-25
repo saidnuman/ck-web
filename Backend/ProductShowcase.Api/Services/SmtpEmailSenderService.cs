@@ -21,17 +21,24 @@ public class SmtpEmailSenderService(
         var host = configuration["Smtp:Host"]?.Trim();
         var portStr = configuration["Smtp:Port"]?.Trim();
         var smtpEmail = configuration["Smtp:Email"]?.Trim();
-        var smtpPassword = configuration["Smtp:Password"];
+        var rawPassword = configuration["Smtp:Password"]?.Trim();
+        var enableSslStr = configuration["Smtp:EnableSsl"]?.Trim();
         var fromName = configuration["Smtp:FromName"]?.Trim();
         if (string.IsNullOrWhiteSpace(fromName)) fromName = "SKIMS Destek";
 
-        if (IsMissingOrPlaceholder(host) || IsMissingOrPlaceholder(smtpEmail) || IsMissingOrPlaceholder(smtpPassword))
+        if (IsMissingOrPlaceholder(host) || IsMissingOrPlaceholder(smtpEmail) || IsMissingOrPlaceholder(rawPassword))
         {
             throw new InvalidOperationException(
-                "E-posta gönderim servisi (SMTP) henüz yapılandırılmamış. Lütfen appsettings.Local.json dosyasındaki Smtp ayarlarını tamamlayın.");
+                "E-posta gönderim servisi (SMTP) henüz yapılandırılmamış. Lütfen appsettings.Local.json dosyasındaki veya sunucu ortam değişkenlerindeki (Smtp__Host, Smtp__Port, Smtp__Email, Smtp__Password, Smtp__EnableSsl) SMTP ayarlarını tamamlayın.");
         }
 
+        // Gmail Uygulama Şifreleri kopyalanırken gelen boşlukları (xxxx xxxx xxxx xxxx) temizle
+        var smtpPassword = host!.Contains("gmail.com", StringComparison.OrdinalIgnoreCase)
+            ? rawPassword!.Replace(" ", string.Empty)
+            : rawPassword!;
+
         var port = int.TryParse(portStr, out var parsedPort) && parsedPort > 0 ? parsedPort : 587;
+        var enableSsl = string.IsNullOrWhiteSpace(enableSslStr) || !bool.TryParse(enableSslStr, out var parsedSsl) || parsedSsl;
 
         using var message = new MailMessage
         {
@@ -52,13 +59,13 @@ public class SmtpEmailSenderService(
         };
         message.To.Add(new MailAddress(toEmail));
 
-        using var client = new SmtpClient(host!, port)
+        using var client = new SmtpClient(host, port)
         {
-            EnableSsl = true,
+            EnableSsl = enableSsl,
             UseDefaultCredentials = false,
             Credentials = new NetworkCredential(smtpEmail, smtpPassword),
             DeliveryMethod = SmtpDeliveryMethod.Network,
-            Timeout = 15000
+            Timeout = 20000
         };
 
         try

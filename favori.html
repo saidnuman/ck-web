@@ -142,14 +142,44 @@
             background-color: #fff;
         }
 
-        @media (max-width: 992px) {
-            .grid-container { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+        @media (max-width: 1024px) {
+            .favorites-page-title {
+                width: 100%;
+                padding: 0 24px;
+                margin: 36px auto 10px auto;
+                font-size: 22px;
+            }
+            .grid-container {
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+                width: 100%;
+                padding: 0 24px;
+            }
         }
         @media (max-width: 768px) {
-            .grid-container { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-        }
-        @media (max-width: 480px) {
-            .grid-container { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .favorites-main-wrapper {
+                padding-bottom: 36px;
+            }
+            .favorites-page-title {
+                padding: 0 16px;
+                margin: 26px auto 8px auto;
+                font-size: 20px;
+            }
+            .grid-container {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                padding: 0 16px;
+                gap: 12px;
+                margin: 18px auto 28px auto;
+            }
+            .grid-container .heart-btn {
+                width: 36px;
+                height: 36px;
+                line-height: 36px;
+                font-size: 22px;
+            }
+            .empty-favorites-msg {
+                padding: 44px 16px;
+                font-size: 14px;
+            }
         }
     </style>
 </head>

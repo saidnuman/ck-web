@@ -612,6 +612,42 @@ function guncelleProfilMenusu() {
             });
         }
     }
+
+    // Mobil menü çekmecesi alt hesap alanını da senkronize et
+    const mobileAccountFooter = document.getElementById("mobile-menu-account-footer");
+    if (mobileAccountFooter) {
+        if (isUserLoggedIn && currentAuthUser) {
+            const adminMobileBtn = (window.SkimsApi && SkimsApi.isAdmin())
+                ? `<a href="admin.html" class="mobile-drawer-account-btn"><i class="fa-solid fa-sliders"></i><span>Admin Paneli</span></a>`
+                : "";
+            mobileAccountFooter.innerHTML = `
+                <a href="favori.html" class="mobile-drawer-account-btn"><i class="fa-regular fa-heart"></i><span>Favorilerim (${currentAuthUser.fullName || currentAuthUser.displayName || "Hesabım"})</span></a>
+                ${adminMobileBtn}
+                <button type="button" class="mobile-drawer-account-btn mobile-drawer-logout" id="mobile-logout-action-btn"><i class="fa-solid fa-right-from-bracket"></i><span>Çıkış Yap</span></button>
+            `;
+            const mobileLogoutBtn = document.getElementById("mobile-logout-action-btn");
+            if (mobileLogoutBtn) {
+                mobileLogoutBtn.addEventListener("click", kullaniciCikisYap);
+            }
+        } else {
+            mobileAccountFooter.innerHTML = `
+                <a href="giris_yap.html" class="mobile-drawer-account-btn mobile-drawer-login-cta" id="mobile-login-action-link"><i class="fa-regular fa-user"></i><span>Giriş Yap / Kayıt Ol</span></a>
+            `;
+            const mobileLoginLink = document.getElementById("mobile-login-action-link");
+            if (mobileLoginLink) {
+                mobileLoginLink.addEventListener("click", (e) => {
+                    e.preventDefault();
+                    if (!hasKvkkConsent()) {
+                        zorunluKvkkModalGoster(() => {
+                            kaydetOncekiSayfaVeGiriseGit();
+                        });
+                        return;
+                    }
+                    kaydetOncekiSayfaVeGiriseGit();
+                });
+            }
+        }
+    }
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -695,6 +731,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
           <div class="main-horizontal-nav"></div>
 
+          <!-- MOBİL ORTA LOGO (Yalnızca <= 768px ekranlarda görünür) -->
+          <div class="mobile-header-logo">
+            <a href="${SITE_CHROME_DEFAULTS.logo.link}" aria-label="Ana Sayfa">
+              <img src="${SITE_CHROME_DEFAULTS.logo.src}" alt="${SITE_CHROME_DEFAULTS.logo.alt}">
+            </a>
+          </div>
+
           <!-- HEADER İKONLARI (Arama, Profil, Favori) -->
           <div class="header-actions">
             <button class="action-btn" id="search-btn" aria-label="Ara">
@@ -718,6 +761,98 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Profil menüsü JWT oturum durumuna göre dinamik güncelleniyor
         guncelleProfilMenusu();
+
+        // --- MOBİL HAMBURGER MENÜ ÇEKMECESİ (<= 1024px) VE DOKUNMATİK PROFİL MENÜSÜ ---
+        const mobileDrawerBackdrop = document.createElement("div");
+        mobileDrawerBackdrop.id = "mobile-menu-backdrop";
+        mobileDrawerBackdrop.className = "mobile-menu-backdrop";
+
+        const mobileDrawer = document.createElement("aside");
+        mobileDrawer.id = "mobile-menu-drawer";
+        mobileDrawer.className = "mobile-menu-drawer";
+        mobileDrawer.setAttribute("aria-hidden", "true");
+        mobileDrawer.innerHTML = `
+            <div class="mobile-drawer-header">
+                <span class="mobile-drawer-title">MENÜ</span>
+                <button type="button" class="mobile-drawer-close-btn" id="mobile-drawer-close-btn" aria-label="Menüyü Kapat">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="mobile-drawer-body">
+                <a href="index.html" class="mobile-drawer-home-link">
+                    <span>ANA SAYFA</span>
+                    <i class="fa-solid fa-chevron-right"></i>
+                </a>
+                <div id="mobile-menu-accordion-root" class="mobile-menu-accordion-root"></div>
+            </div>
+            <div class="mobile-drawer-footer" id="mobile-menu-account-footer"></div>
+        `;
+        document.body.appendChild(mobileDrawerBackdrop);
+        document.body.appendChild(mobileDrawer);
+
+        // Hesap alt alanını da ilk çizimde doldur
+        guncelleProfilMenusu();
+
+        const openMobileDrawer = () => {
+            mobileDrawer.classList.add("is-open");
+            mobileDrawerBackdrop.classList.add("is-open");
+            mobileDrawer.setAttribute("aria-hidden", "false");
+            document.body.classList.add("mobile-drawer-open");
+        };
+        const closeMobileDrawer = () => {
+            mobileDrawer.classList.remove("is-open");
+            mobileDrawerBackdrop.classList.remove("is-open");
+            mobileDrawer.setAttribute("aria-hidden", "true");
+            document.body.classList.remove("mobile-drawer-open");
+        };
+        window.SkimsCloseMobileDrawer = closeMobileDrawer;
+
+        const katalogBtn = headerNavEl.querySelector(".katalog-btn");
+        if (katalogBtn) {
+            katalogBtn.addEventListener("click", (e) => {
+                if (window.innerWidth <= 1024) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (mobileDrawer.classList.contains("is-open")) {
+                        closeMobileDrawer();
+                    } else {
+                        openMobileDrawer();
+                    }
+                }
+            });
+        }
+
+        const mobileCloseBtn = document.getElementById("mobile-drawer-close-btn");
+        if (mobileCloseBtn) mobileCloseBtn.addEventListener("click", closeMobileDrawer);
+        mobileDrawerBackdrop.addEventListener("click", closeMobileDrawer);
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape" && mobileDrawer.classList.contains("is-open")) {
+                closeMobileDrawer();
+            }
+        });
+        window.addEventListener("resize", () => {
+            if (window.innerWidth > 1024 && mobileDrawer.classList.contains("is-open")) {
+                closeMobileDrawer();
+            }
+        });
+
+        // Dokunmatik ekranlarda Profil dropdown açma/kapama
+        const profileWrapper = headerNavEl.querySelector(".profile-wrapper");
+        const profileBtnEl = document.getElementById("profile-btn");
+        if (profileWrapper && profileBtnEl) {
+            profileBtnEl.addEventListener("click", (e) => {
+                if (window.innerWidth <= 1024) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    profileWrapper.classList.toggle("is-open");
+                }
+            });
+            document.addEventListener("click", (e) => {
+                if (profileWrapper.classList.contains("is-open") && !profileWrapper.contains(e.target)) {
+                    profileWrapper.classList.remove("is-open");
+                }
+            });
+        }
 
         // Mevcut sayfa bir kategori sayfasıysa (?kategori=slug) görüntülenme logunu kaydet
         if (activeSlug) {
@@ -993,30 +1128,37 @@ document.addEventListener("DOMContentLoaded", () => {
 
             window.addEventListener("scroll", () => {
                 const currentScrollY = window.scrollY;
-                const deltaY = currentScrollY - lastScrollY;
+                const isMobileCompactHeader = window.innerWidth <= 768;
+                const totalHeight = wrapper.offsetHeight; // Toplam yükseklik (~120px / mobilde 60px)
 
-                const topHeight = headerTop.offsetHeight; // Logo yüksekliği (55px)
-                const totalHeight = wrapper.offsetHeight; // Toplam yükseklik (~120px)
+                if (isMobileCompactHeader) {
+                    currentTranslate = 0;
+                    wrapper.style.transform = "translateY(0px)";
+                    lastScrollY = currentScrollY;
+                } else {
+                    const deltaY = currentScrollY - lastScrollY;
+                    const topHeight = headerTop.offsetHeight; // Logo yüksekliği (55px)
 
-                // Piksel bazlı olarak, delta (fark) kadar menüyü itiyoruz veya çekiyoruz
-                currentTranslate -= deltaY;
+                    // Piksel bazlı olarak, delta (fark) kadar menüyü itiyoruz veya çekiyoruz
+                    currentTranslate -= deltaY;
 
-                // Yukarı çıkarken sınır (maksimum görünürlük) hesaplaması:
-                // Sadece sayfanın en üstündeysek logonun görünmesine izin ver (maxTranslate = 0)
-                // Sayfanın ortalarındaysak logo gizli, sadece menü görünsün (maxTranslate = -topHeight)
-                let maxTranslate = 0;
-                if (currentScrollY > 0) {
-                    maxTranslate = -Math.min(topHeight, currentScrollY);
+                    // Yukarı çıkarken sınır (maksimum görünürlük) hesaplaması:
+                    // Sadece sayfanın en üstündeysek logonun görünmesine izin ver (maxTranslate = 0)
+                    // Sayfanın ortalarındaysak logo gizli, sadece menü görünsün (maxTranslate = -topHeight)
+                    let maxTranslate = 0;
+                    if (currentScrollY > 0) {
+                        maxTranslate = -Math.min(topHeight, currentScrollY);
+                    }
+
+                    // Hesaplanmış kaydırma miktarını sınırlar içinde tutuyoruz:
+                    if (currentTranslate > maxTranslate) currentTranslate = maxTranslate;
+                    // En fazla tamamen saklanacak (totalHeight) kadar yukarı çıkabilir
+                    if (currentTranslate < -totalHeight) currentTranslate = -totalHeight;
+
+                    // Menüye piksel bazlı hareketi uyguluyoruz (Gecikmesiz, scroll hızında)
+                    wrapper.style.transform = `translateY(${currentTranslate}px)`;
+                    lastScrollY = currentScrollY;
                 }
-
-                // Hesaplanmış kaydırma miktarını sınırlar içinde tutuyoruz:
-                if (currentTranslate > maxTranslate) currentTranslate = maxTranslate;
-                // En fazla tamamen saklanacak (totalHeight) kadar yukarı çıkabilir
-                if (currentTranslate < -totalHeight) currentTranslate = -totalHeight;
-
-                // Menüye piksel bazlı hareketi uyguluyoruz (Gecikmesiz, scroll hızında)
-                wrapper.style.transform = `translateY(${currentTranslate}px)`;
-                lastScrollY = currentScrollY;
 
                 // -- B: Dinamik Video Bölümüne gelince siyah yapma --
                 const videoSections = Array.from(document.querySelectorAll(".carousel-section"))

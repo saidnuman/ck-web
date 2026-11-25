@@ -1817,7 +1817,6 @@
 
     <!-- Gizli dosya seçiciler -->
     <input type="file" id="drawer-file-input" style="display:none;">
-    <input type="file" id="quick-multi-file-input" multiple style="display:none;">
     <input type="file" id="settings-logo-input" accept=".jpg,.jpeg,.png,.webp,.gif" style="display:none;">
 
     <!-- Toast Bildirimi -->
@@ -2480,7 +2479,6 @@
 
             // File inputs
             const drawerFileInput = document.getElementById("drawer-file-input");
-            const quickMultiFileInput = document.getElementById("quick-multi-file-input");
             const settingsLogoInput = document.getElementById("settings-logo-input");
 
             // Modals
@@ -2586,7 +2584,6 @@
             let largeEditorTempTransform = null;
             let mediaLibraryItems = [];
             let mediaLibraryFilter = "all";
-            let quickAppendTarget = null;
 
             function cloneCategoryTree(nodes) {
                 return (nodes || []).map(n => ({
@@ -3762,7 +3759,7 @@
                                 data-vc-add-video="${escapeHtml(sKey)}" data-tab-id="${escapeHtml(activeTab.id)}" data-page-key="${escapeHtml(pageKey)}" data-is-custom="${isCustom ? '1' : '0'}">
                                 <div class="frame-plus-circle"><i class="fa-solid fa-video"></i></div>
                                 <span class="frame-label">+ "${escapeHtml(activeTab.name)}" Sekmesine Video Ekle</span>
-                                <small style="font-size:10.5px; opacity:0.7;">.mp4 / .webm / .mov<br>(Çoklu seçim destekli)</small>
+                                <small style="font-size:10.5px; opacity:0.7;">.mp4 / .webm / .mov<br>Sağ panelden yükle / seç</small>
                             </button>
                         </div>
                     `;
@@ -3888,7 +3885,7 @@
                                 data-quick-append="${escapeHtml(sKey)}" data-page-key="${escapeHtml(pageKey)}" data-template-type="bolum-d" data-is-custom="${isCustom ? '1' : '0'}">
                                 <div class="frame-plus-circle"><i class="fa-solid fa-plus"></i></div>
                                 <span class="frame-label">+ Yeni Fotoğraf Ekle</span>
-                                <small style="font-size:10.5px; opacity:0.7;">Sınırsız çoklu seçim</small>
+                                <small style="font-size:10.5px; opacity:0.7;">Sağ panelden yükle / seç</small>
                             </button>
                         </div>
                     `;
@@ -4209,18 +4206,41 @@
                 });
 
                 duzenlemeCanvas.querySelectorAll("[data-vc-add-video]").forEach(btn => {
-                    btn.addEventListener("click", () => {
-                        quickAppendTarget = {
-                            mode: "video-tab-append",
-                            sectionKey: btn.getAttribute("data-vc-add-video"),
-                            tabId: btn.getAttribute("data-tab-id"),
-                            pageKey: btn.getAttribute("data-page-key"),
-                            templateType: "video",
-                            isCustom: btn.getAttribute("data-is-custom") === "1"
-                        };
-                        quickMultiFileInput.accept = "video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov,.jpg,.jpeg,.png,.webp,.gif,.jfif,.avif,.bmp";
-                        quickMultiFileInput.value = "";
-                        quickMultiFileInput.click();
+                    btn.addEventListener("click", (e) => {
+                        e.stopPropagation();
+                        const sKey = btn.getAttribute("data-vc-add-video");
+                        const tabId = btn.getAttribute("data-tab-id");
+                        const pKey = btn.getAttribute("data-page-key");
+                        const isCustom = btn.getAttribute("data-is-custom") === "1";
+                        const newItemId = `vid_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+                        let created = false;
+                        pushHistoryAndApply(state => {
+                            const sec = ensureDraftSection(state, pKey, sKey, "video", isCustom);
+                            if (!sec.videoData) sec.videoData = SkimsPageSections.getDefaultVideoCarouselData();
+                            const tab = sec.videoData.tabs.find(t => t.id === tabId);
+                            if (!tab) return;
+                            tab.items.push({
+                                id: newItemId,
+                                badge: "• Video",
+                                title: "",
+                                subtitle: "",
+                                videoUrl: null,
+                                mediaType: "video",
+                                linkUrl: null
+                            });
+                            created = true;
+                        });
+                        if (created) {
+                            openSlotDrawer({
+                                mode: "video-item",
+                                pageKey: pKey,
+                                sectionKey: sKey,
+                                templateType: "video",
+                                isCustom,
+                                tabId,
+                                itemId: newItemId
+                            });
+                        }
                     });
                 });
 
@@ -4241,15 +4261,18 @@
                     });
                 });
 
-                // 9) Ana Sayfa Video Slayt Ekle
+                // 9) Ana Sayfa Video Slayt Ekle (yeni boş slayt oluşturup doğrudan Sağ Düzenleme Panelini aç)
                 duzenlemeCanvas.querySelectorAll("[data-add-hero-slide]").forEach(btn => {
-                    btn.addEventListener("click", () => {
+                    btn.addEventListener("click", (e) => {
+                        e.stopPropagation();
                         const sKey = btn.getAttribute("data-add-hero-slide");
                         const pKey = btn.getAttribute("data-page-key");
                         const isCustom = btn.getAttribute("data-is-custom") === "1";
+                        let createdSlotNum = 1;
                         pushHistoryAndApply(state => {
                             const sec = ensureDraftSection(state, pKey, sKey, "video-hero", isCustom);
                             const nextSlot = (sec.slots || []).reduce((m, s) => Math.max(m, Number(s.slot) || 0), 0) + 1;
+                            createdSlotNum = nextSlot;
                             sec.slots.push({
                                 slot: nextSlot,
                                 imageUrl: null,
@@ -4259,6 +4282,14 @@
                                 buttonText: "Shop Now",
                                 linkUrl: null
                             });
+                        });
+                        openSlotDrawer({
+                            mode: "slot",
+                            pageKey: pKey,
+                            sectionKey: sKey,
+                            templateType: "video-hero",
+                            isCustom,
+                            slotNum: createdSlotNum
                         });
                     });
                 });
@@ -4295,19 +4326,39 @@
                     });
                 });
 
-                // 11) Bölüm D hızlı çoklu fotoğraf ekleme
+                // 11) Bölüm D yeni öğe ekleme (yeni boş slot oluşturup doğrudan Sağ Düzenleme Panelini aç)
                 duzenlemeCanvas.querySelectorAll("[data-quick-append]").forEach(btn => {
-                    btn.addEventListener("click", () => {
-                        quickAppendTarget = {
-                            mode: "slot-append",
-                            sectionKey: btn.getAttribute("data-quick-append"),
-                            pageKey: btn.getAttribute("data-page-key"),
-                            templateType: btn.getAttribute("data-template-type"),
-                            isCustom: btn.getAttribute("data-is-custom") === "1"
-                        };
-                        quickMultiFileInput.accept = ".jpg,.jpeg,.png,.webp,.gif,.jfif,.avif,.bmp";
-                        quickMultiFileInput.value = "";
-                        quickMultiFileInput.click();
+                    btn.addEventListener("click", (e) => {
+                        e.stopPropagation();
+                        const sKey = btn.getAttribute("data-quick-append");
+                        const pKey = btn.getAttribute("data-page-key");
+                        const tpl = btn.getAttribute("data-template-type") || "bolum-d";
+                        const isCustom = btn.getAttribute("data-is-custom") === "1";
+                        let createdSlotNum = 1;
+                        pushHistoryAndApply(state => {
+                            const sec = ensureDraftSection(state, pKey, sKey, tpl, isCustom);
+                            const nextSlot = (sec.slots || []).reduce((m, s) => Math.max(m, Number(s.slot) || 0), 0) + 1;
+                            createdSlotNum = nextSlot;
+                            sec.slots.push({
+                                slot: nextSlot,
+                                imageUrl: null,
+                                mediaType: "image",
+                                brand: null,
+                                title: null,
+                                description: null,
+                                price: null,
+                                discount: null,
+                                linkUrl: null
+                            });
+                        });
+                        openSlotDrawer({
+                            mode: "slot",
+                            pageKey: pKey,
+                            sectionKey: sKey,
+                            templateType: tpl,
+                            isCustom,
+                            slotNum: createdSlotNum
+                        });
                     });
                 });
 
@@ -4327,17 +4378,28 @@
                     });
                 });
                 duzenlemeCanvas.querySelectorAll("[data-b-add-group]").forEach(btn => {
-                    btn.addEventListener("click", () => {
+                    btn.addEventListener("click", (e) => {
+                        e.stopPropagation();
                         const sKey = btn.getAttribute("data-b-add-group");
                         const pKey = btn.getAttribute("data-page-key");
                         const tpl = btn.getAttribute("data-template-type");
                         const isCustom = btn.getAttribute("data-is-custom") === "1";
+                        let firstSlotNum = 5;
                         pushHistoryAndApply(state => {
                             const sec = ensureDraftSection(state, pKey, sKey, tpl, isCustom);
                             const maxSlot = (sec.slots || []).reduce((m, s) => Math.max(m, Number(s.slot) || 0), 4);
                             const currentGroups = Math.max(1, Math.ceil(maxSlot / 4));
-                            sec.slots.push({ slot: currentGroups * 4 + 1, imageUrl: null, groupTitle: null, groupSubtitle: null });
+                            firstSlotNum = currentGroups * 4 + 1;
+                            sec.slots.push({ slot: firstSlotNum, imageUrl: null, groupTitle: null, groupSubtitle: null });
                             bolumBActivePageMap[sKey] = currentGroups;
+                        });
+                        openSlotDrawer({
+                            mode: "slot",
+                            pageKey: pKey,
+                            sectionKey: sKey,
+                            templateType: tpl,
+                            isCustom,
+                            slotNum: firstSlotNum
                         });
                     });
                 });
@@ -4363,68 +4425,6 @@
 
             document.addEventListener("click", () => {
                 duzenlemeCanvas.querySelectorAll(".insert-divider-wrap.menu-open").forEach(w => w.classList.remove("menu-open"));
-            });
-
-            // Çoklu hızlı ekleme (Bölüm D fotoğrafları veya Video Carousel sekme videoları)
-            quickMultiFileInput.addEventListener("change", async () => {
-                const files = Array.from(quickMultiFileInput.files || []);
-                if (files.length === 0 || !quickAppendTarget) return;
-                const target = quickAppendTarget;
-                quickAppendTarget = null;
-
-                const prepared = [];
-                for (const f of files) {
-                    const mediaType = detectMediaTypeFromFile(f);
-                    const previewDataUrl = mediaType === "video" ? URL.createObjectURL(f) : await readFileAsDataUrl(f);
-                    prepared.push({ file: f, mediaType, previewDataUrl });
-                }
-
-                if (target.mode === "video-tab-append") {
-                    pushHistoryAndApply(state => {
-                        const sec = ensureDraftSection(state, target.pageKey, target.sectionKey, "video", target.isCustom);
-                        if (!sec.videoData) sec.videoData = SkimsPageSections.getDefaultVideoCarouselData();
-                        const tab = sec.videoData.tabs.find(t => t.id === target.tabId);
-                        if (!tab) return;
-                        prepared.forEach((p, idx) => {
-                            tab.items.push({
-                                id: `vid_${Date.now().toString(36)}_${idx}`,
-                                badge: "• Video",
-                                title: p.file.name.replace(/\.[^/.]+$/, ""),
-                                subtitle: "",
-                                videoUrl: null,
-                                imageFile: p.file,
-                                previewDataUrl: p.previewDataUrl,
-                                mediaType: p.mediaType,
-                                linkUrl: null
-                            });
-                        });
-                    });
-                    showToast(`${prepared.length} video sekmeye eklendi.`, "info");
-                    return;
-                }
-
-                pushHistoryAndApply(state => {
-                    const sec = ensureDraftSection(state, target.pageKey, target.sectionKey, target.templateType, target.isCustom);
-                    let nextSlot = (sec.slots || []).reduce((m, s) => Math.max(m, Number(s.slot) || 0), 0) + 1;
-                    prepared.forEach(item => {
-                        sec.slots.push({
-                            slot: nextSlot,
-                            imageFile: item.file,
-                            previewDataUrl: item.previewDataUrl,
-                            imageUrl: null,
-                            mediaType: item.mediaType,
-                            brand: null,
-                            title: null,
-                            description: null,
-                            price: null,
-                            discount: null,
-                            linkUrl: null
-                        });
-                        if (nextSlot === 1) { sec.imageFile = item.file; sec.previewDataUrl = item.previewDataUrl; }
-                        nextSlot++;
-                    });
-                });
-                showToast(`${prepared.length} fotoğraf kolaja eklendi.`, "info");
             });
 
             // ================================================================

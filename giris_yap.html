@@ -266,6 +266,67 @@
     .forgot-back-link:hover {
         color: #111;
     }
+
+    @media (max-width: 768px) {
+        .login-container {
+            padding: 24px 14px 36px 14px;
+            align-items: flex-start;
+            min-height: auto;
+        }
+
+        .login-content-box {
+            padding: 24px 18px;
+            max-width: 100%;
+        }
+
+        .login-title {
+            font-size: 24px;
+            margin-bottom: 18px;
+        }
+
+        .auth-tab-btn {
+            min-height: 44px;
+            padding: 10px 4px;
+        }
+
+        .auth-field input {
+            font-size: 16px;
+            height: 46px;
+        }
+
+        .auth-submit-btn {
+            height: 48px;
+        }
+
+        .forgot-password-link,
+        .forgot-back-link {
+            min-height: 40px;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .forgot-secondary-actions {
+            flex-wrap: wrap;
+        }
+
+        .google-auth-slot {
+            overflow: hidden;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .login-container {
+            padding: 18px 12px 28px 12px;
+        }
+
+        .login-content-box {
+            padding: 22px 14px;
+        }
+
+        .login-title {
+            font-size: 22px;
+        }
+    }
 </style>
 </head>
 <body class="login-page-body">
@@ -574,14 +635,35 @@
             }
         });
 
+        // 6 haneli kod alanına yapıştırılan boşluk veya tireleri otomatik temizle
+        const forgotCodeInput = document.getElementById("forgot-code");
+        if (forgotCodeInput) {
+            forgotCodeInput.addEventListener("input", () => {
+                const digitsOnly = forgotCodeInput.value.replace(/\D/g, "").slice(0, 6);
+                if (forgotCodeInput.value !== digitsOnly) {
+                    forgotCodeInput.value = digitsOnly;
+                }
+            });
+        }
+
         // Şifremi Unuttum — Adım 2 & 3: Kodu Doğrula ve Yeni Şifreyi Kaydet
         forgotStep2Form.addEventListener("submit", async (e) => {
             e.preventDefault();
             clearStatus();
 
-            const code = document.getElementById("forgot-code").value.trim();
+            const code = document.getElementById("forgot-code").value.replace(/\D/g, "").trim();
             const newPassword = document.getElementById("forgot-new-password").value;
             const confirmNewPassword = document.getElementById("forgot-confirm-password").value;
+
+            if (code.length !== 6) {
+                showStatus("error", "Lütfen e-postanıza gelen 6 haneli sayısal doğrulama kodunu eksiksiz girin.");
+                return;
+            }
+
+            if (newPassword.length < 6) {
+                showStatus("error", "Yeni şifre en az 6 karakter olmalıdır.");
+                return;
+            }
 
             if (newPassword !== confirmNewPassword) {
                 showStatus("error", "Girilen şifreler birbiriyle uyuşmuyor.");
@@ -706,7 +788,8 @@
                 callback: handleGoogleCredential
             });
 
-            const buttonWidth = Math.min(354, Math.max(240, loginSlot.clientWidth || 354));
+            const availableWidth = loginSlot.clientWidth || loginSlot.parentElement?.clientWidth || 320;
+            const buttonWidth = Math.min(354, Math.max(200, availableWidth));
             window.google.accounts.id.renderButton(loginSlot, {
                 theme: "outline",
                 size: "large",

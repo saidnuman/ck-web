@@ -1147,6 +1147,30 @@ const LOCAL_API_BASE_URL = "http://localhost:5000";
                     vid.addEventListener("ended", moveToNext);
                 });
 
+                // Dokunmatik (touch swipe) ile Ana Sayfa Video slaytları arasında geçiş
+                if (originalCount > 1) {
+                    let touchStartX = 0;
+                    let touchStartY = 0;
+                    container.addEventListener("touchstart", (e) => {
+                        if (!e.touches || e.touches.length !== 1) return;
+                        touchStartX = e.touches[0].clientX;
+                        touchStartY = e.touches[0].clientY;
+                    }, { passive: true });
+                    container.addEventListener("touchend", (e) => {
+                        if (!e.changedTouches || e.changedTouches.length !== 1 || isTransitioning) return;
+                        const dx = e.changedTouches[0].clientX - touchStartX;
+                        const dy = e.changedTouches[0].clientY - touchStartY;
+                        if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+                            if (dx < 0) {
+                                moveToNext();
+                            } else {
+                                counter = counter > 0 ? counter - 1 : originalCount - 1;
+                                updateSlide();
+                            }
+                        }
+                    }, { passive: true });
+                }
+
                 updateSlide();
             }
             hydrateMediaTransformsInRoot(container);
@@ -1291,6 +1315,29 @@ const LOCAL_API_BASE_URL = "http://localhost:5000";
 
             prevBtn.addEventListener("click", () => { if (activeGroup > 0) { activeGroup--; renderGroup(); } });
             nextBtn.addEventListener("click", () => { if (activeGroup < totalGroups - 1) { activeGroup++; renderGroup(); } });
+
+            // Mobilde büyük kapak görseli üzerinde yatay kaydırma (touch swipe) ile 4'lü gruplar arası geçiş
+            if (totalGroups > 1) {
+                let bTouchStartX = 0;
+                let bTouchStartY = 0;
+                slidingArea.addEventListener("touchstart", (e) => {
+                    if (!e.touches || e.touches.length !== 1) return;
+                    if (e.target && e.target.closest(".trend-grid")) { bTouchStartX = 0; return; }
+                    bTouchStartX = e.touches[0].clientX;
+                    bTouchStartY = e.touches[0].clientY;
+                }, { passive: true });
+                slidingArea.addEventListener("touchend", (e) => {
+                    if (!bTouchStartX || !e.changedTouches || e.changedTouches.length !== 1) return;
+                    const dx = e.changedTouches[0].clientX - bTouchStartX;
+                    const dy = e.changedTouches[0].clientY - bTouchStartY;
+                    bTouchStartX = 0;
+                    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+                        if (dx < 0 && activeGroup < totalGroups - 1) { activeGroup++; renderGroup(); }
+                        else if (dx > 0 && activeGroup > 0) { activeGroup--; renderGroup(); }
+                    }
+                }, { passive: true });
+            }
+
             renderGroup();
             return mainEl;
         }
@@ -1364,7 +1411,9 @@ const LOCAL_API_BASE_URL = "http://localhost:5000";
             };
             const scrollStep = () => {
                 const c = track.querySelector(".product-card");
-                return c ? (c.getBoundingClientRect().width + 16) * 4 : 520;
+                const visibleStep = window.innerWidth <= 768 ? 2 : 4;
+                const gapPx = parseFloat(window.getComputedStyle(track).gap) || 16;
+                return c ? (c.getBoundingClientRect().width + gapPx) * visibleStep : 520;
             };
             prevBtn.addEventListener("click", () => track.scrollBy({ left: -scrollStep(), behavior: "smooth" }));
             nextBtn.addEventListener("click", () => track.scrollBy({ left: scrollStep(), behavior: "smooth" }));
@@ -1432,10 +1481,40 @@ const LOCAL_API_BASE_URL = "http://localhost:5000";
             }
 
             function getPerView() {
-                if (window.innerWidth <= 450) return 1;
-                if (window.innerWidth <= 600) return 2;
-                if (window.innerWidth <= 900) return 3;
+                if (window.innerWidth <= 480) return 1;
+                if (window.innerWidth <= 768) return 2;
+                if (window.innerWidth <= 1024) return 3;
                 return 4;
+            }
+
+            let activeUpdateCarouselFn = null;
+            let vcResizeTimer = null;
+            window.addEventListener("resize", () => {
+                clearTimeout(vcResizeTimer);
+                vcResizeTimer = setTimeout(() => {
+                    if (typeof activeUpdateCarouselFn === "function") activeUpdateCarouselFn();
+                }, 120);
+            });
+
+            // Dokunmatik (touch swipe) ile video kartları arasında kaydırma
+            const wrapperEl = secEl.querySelector("[data-vc-wrapper]");
+            if (wrapperEl) {
+                let vcTouchStartX = 0;
+                let vcTouchStartY = 0;
+                wrapperEl.addEventListener("touchstart", (e) => {
+                    if (!e.touches || e.touches.length !== 1) return;
+                    vcTouchStartX = e.touches[0].clientX;
+                    vcTouchStartY = e.touches[0].clientY;
+                }, { passive: true });
+                wrapperEl.addEventListener("touchend", (e) => {
+                    if (!e.changedTouches || e.changedTouches.length !== 1) return;
+                    const dx = e.changedTouches[0].clientX - vcTouchStartX;
+                    const dy = e.changedTouches[0].clientY - vcTouchStartY;
+                    if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+                        if (dx < 0 && !nextBtn.disabled && typeof nextBtn.onclick === "function") nextBtn.onclick();
+                        else if (dx > 0 && !prevBtn.disabled && typeof prevBtn.onclick === "function") prevBtn.onclick();
+                    }
+                }, { passive: true });
             }
 
             function renderTab(tabObj) {
@@ -1522,7 +1601,7 @@ const LOCAL_API_BASE_URL = "http://localhost:5000";
                     if (currentPage >= totalPages) currentPage = totalPages - 1;
 
                     const cardWidth = cards[0]?.offsetWidth || 260;
-                    const gap = 20;
+                    const gap = parseFloat(window.getComputedStyle(track).gap) || 20;
                     const targetIndex = Math.min(currentPage * itemsPerView, maxIndex);
                     track.style.transform = `translateX(-${(cardWidth + gap) * targetIndex}px)`;
 
@@ -1533,6 +1612,7 @@ const LOCAL_API_BASE_URL = "http://localhost:5000";
                     startGroupSequence();
                 }
 
+                activeUpdateCarouselFn = updateCarousel;
                 prevBtn.onclick = () => { if (currentPage > 0) { currentPage--; updateCarousel(); } };
                 nextBtn.onclick = () => { if (currentPage < totalPages - 1) { currentPage++; updateCarousel(); } };
                 hydrateMediaTransformsInRoot(track);
@@ -1700,6 +1780,77 @@ const LOCAL_API_BASE_URL = "http://localhost:5000";
             sidebarEl.innerHTML = tabsHtml;
             contentAreaEl.innerHTML = panelsHtml;
 
+            // Mobil Hamburger Menü Çekmecesi (3 Seviyeli Dinamik Akordeon: Ana Başlık -> Alt Başlık -> Kategori)
+            const mobileAccordionRoot = document.getElementById("mobile-menu-accordion-root");
+            if (mobileAccordionRoot) {
+                mobileAccordionRoot.innerHTML = tree.map((mainNode, idx) => {
+                    const hiddenMark = !mainNode.isPublished ? " (Gizli)" : "";
+                    const subGroupsHtml = (mainNode.children || []).map(subNode => {
+                        const subHiddenMark = !subNode.isPublished ? " (Gizli)" : "";
+                        const catLinksHtml = (subNode.children || []).map(cat => {
+                            const url = `index.html?kategori=${encodeURIComponent(cat.slug)}`;
+                            const catHiddenMark = !cat.isPublished ? " (Gizli)" : "";
+                            return `<a href="${url}" class="mobile-acc-link" data-category-name="${escapeAttr(cat.name)}" data-parent-group="${escapeAttr(subNode.name)}">${escapeAttr(cat.name)}${catHiddenMark}</a>`;
+                        }).join("");
+
+                        return `
+                            <div class="mobile-acc-l2">
+                                <button type="button" class="mobile-acc-l2-btn" aria-expanded="false">
+                                    <span>${escapeAttr(subNode.name)}${subHiddenMark}</span>
+                                    <i class="fa-solid fa-chevron-down"></i>
+                                </button>
+                                <div class="mobile-acc-l2-body">${catLinksHtml}</div>
+                            </div>
+                        `;
+                    }).join("");
+
+                    return `
+                        <div class="mobile-acc-l1 ${idx === 0 ? "is-open" : ""}">
+                            <button type="button" class="mobile-acc-l1-btn" aria-expanded="${idx === 0 ? "true" : "false"}">
+                                <span>${escapeAttr(mainNode.name)}${hiddenMark}</span>
+                                <i class="fa-solid fa-chevron-down"></i>
+                            </button>
+                            <div class="mobile-acc-l1-body">${subGroupsHtml}</div>
+                        </div>
+                    `;
+                }).join("");
+
+                mobileAccordionRoot.querySelectorAll(".mobile-acc-l1-btn").forEach(btn => {
+                    btn.addEventListener("click", () => {
+                        const parent = btn.closest(".mobile-acc-l1");
+                        if (!parent) return;
+                        const nextOpen = !parent.classList.contains("is-open");
+                        parent.classList.toggle("is-open", nextOpen);
+                        btn.setAttribute("aria-expanded", nextOpen ? "true" : "false");
+                    });
+                });
+
+                mobileAccordionRoot.querySelectorAll(".mobile-acc-l2-btn").forEach(btn => {
+                    btn.addEventListener("click", () => {
+                        const parent = btn.closest(".mobile-acc-l2");
+                        if (!parent) return;
+                        const nextOpen = !parent.classList.contains("is-open");
+                        parent.classList.toggle("is-open", nextOpen);
+                        btn.setAttribute("aria-expanded", nextOpen ? "true" : "false");
+                    });
+                });
+
+                mobileAccordionRoot.querySelectorAll(".mobile-acc-link").forEach(link => {
+                    link.addEventListener("click", () => {
+                        if (typeof global.gonderTelemetriVerisi === "function") {
+                            global.gonderTelemetriVerisi("mega_menu", "category_link_click", {
+                                parentGroup: link.getAttribute("data-parent-group") || "Mobil Menü",
+                                categoryName: (link.getAttribute("data-category-name") || link.textContent || "").trim(),
+                                targetUrl: link.getAttribute("href") || "#"
+                            });
+                        }
+                        if (typeof global.SkimsCloseMobileDrawer === "function") {
+                            global.SkimsCloseMobileDrawer();
+                        }
+                    });
+                });
+            }
+
             // Hover ile sekme geçişlerini ve tıklama telemetrisini yeniden bağla
             const tabs = sidebarEl.querySelectorAll(".mega-tab");
             const panels = contentAreaEl.querySelectorAll(".mega-content-panel");
@@ -1775,7 +1926,7 @@ const LOCAL_API_BASE_URL = "http://localhost:5000";
             if (settings) {
                 if (settings.logoUrl) {
                     const resolvedLogo = SkimsApi.resolveMediaUrl(settings.logoUrl);
-                    document.querySelectorAll("#header-logo-container img, #footer-logo-container img").forEach(img => {
+                    document.querySelectorAll("#header-logo-container img, .mobile-header-logo img, #footer-logo-container img").forEach(img => {
                         img.src = resolvedLogo;
                         img.alt = "Site Logosu";
                     });
